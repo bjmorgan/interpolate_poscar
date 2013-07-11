@@ -1,14 +1,47 @@
 #! /home/morgan/bin/ruby/bin/ruby
 
+require 'optparse'
+
+executable_name = File.basename( $PROGRAM_NAME )
+options = {}
+
+optparse = OptionParser.new do |opts|
+  opts.banner = "Usage: #{executable_name} [options] filename1 filename2"
+
+  options[:number] = 1
+  opts.on( '-n', '--number-of-images NUMBER', Integer, 'Number of images' ) do |number|
+    options[:number] = number
+  end
+
+  options[:prefix] = 'POSCAR'
+  opts.on( '-p', '--prefix PREFIX', 'Prefix for output files' ) do |prefix|
+    options[:prefix] = prefix
+  end
+
+  options[:verbose] = false
+  opts.on( '-v', '--verbose', 'Verbose output' ) do 
+    options[:verbose] = true
+  end
+
+  opts.on( '-h', '--help', 'Display this screen' )do
+    puts opts
+    exit
+  end
+end
+
+optparse.parse!
+
 class Poscar
 
   attr_accessor :coordinates
+  attr_reader :filename
 
   def initialize( filename )
     read_from( filename )
   end
 
   def read_from( filename )
+    @filename = filename
     input = File.new( filename, 'r').readlines
     @title = input.shift
     @scaling = input.shift
@@ -21,30 +54,46 @@ class Poscar
     total_atom_number.times { |i| @coordinates << input.shift.split.map { |s| s.to_f } }
   end
 
-  def output
-    puts @title
-    puts @scaling
-    puts @lattice
-    puts @atoms.join(' ')
-    puts @atom_numbers.map{ |i| i.to_s }.join(' ')
-    puts @coordinate_type
-    @coordinates.each{ |coord| puts coord.map{ |f| f.to_s }.join(' ') }
+  def output( filename, verbose )
+    fileout = File.new( filename, 'w' )
+    fileout.puts @title
+    fileout.puts @scaling
+    fileout.puts @lattice
+    fileout.puts @atoms.join(' ')
+    fileout.puts @atom_numbers.map{ |i| i.to_s }.join(' ')
+    fileout.puts @coordinate_type
+    @coordinates.each{ |coord| fileout.puts coord.map{ |f| f.to_s }.join(' ') }
+    puts "created #{filename}" if verbose
   end
 
-  def self.interpolate( poscar1, poscar2 )
+  def self.interpolate( poscar1, poscar2, distance )
     new_poscar = poscar1
     # should test that the two poscars are compatible
     # ignoring periodic boundary conditions and minimum image convention
     new_poscar.coordinates = poscar1.coordinates.zip( poscar2.coordinates ).map do |coords1, coords2|
-      coords1.zip(coords2).map{ |r1,r2| (r1 + r2) / 2.0 }
+      coords1.zip(coords2).map{ |r1,r2| (r1 + r2) * distance }
     end
     return new_poscar
   end
 
 end
 
-poscar1 = Poscar.new( ARGV[0] )
-poscar2 = Poscar.new( ARGV[1] )
+if ARGV.size != 2
+  puts "#{executable_name}: 2 POSCAR filenames must be supplied"
+  puts
+  puts optparse.help
+  abort
+else
+  poscar1 = Poscar.new( ARGV[0] )
+  poscar2 = Poscar.new( ARGV[1] )
+end
 
-interpolated_poscar = Poscar.interpolate( poscar1, poscar2 )
-interpolated_poscar.output
+puts "interpolating #{poscar1.filename} <==> #{poscar2.filename}:" if options[:verbose]
+puts "generating #{options[:number]} output files:"
+options[:number].times do |i| 
+  distance = (i+1).to_f / options[:number].to_f
+  interpolated_poscar = Poscar.interpolate( poscar1, poscar2, distance )
+  output_filename = options[:prefix]+(i+1).to_s
+  interpolated_poscar.output( output_filename, options[:verbose] )
+end
+
