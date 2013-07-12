@@ -73,7 +73,7 @@ class Poscar
   end
 
   def self.interpolate( poscar1, poscar2, distance )
-    new_poscar = poscar1
+    new_poscar = poscar1.clone
     # should convert read in poscars to consistent coordinate type
     # Assuming both cells are in Cartesian coordinates
     new_poscar.coordinates = poscar1.coordinates.zip( poscar2.coordinates ).map do |coords1, coords2|
