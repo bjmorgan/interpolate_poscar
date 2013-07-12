@@ -82,7 +82,7 @@ class Poscar
         if ( ( r[0] - r[1] ).abs > cell_length / 2.0 )
           r[ r.index( r.max ) ] -= cell_length
         end
-        (r[0] + r[1]) * distance 
+        r[0] + ( (r[1] - r[0]) * distance )
       end
     end
     return new_poscar
