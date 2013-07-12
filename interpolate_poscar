@@ -101,7 +101,7 @@ else
 end
 
 puts "interpolating #{poscar1.filename} <==> #{poscar2.filename}:" if options[:verbose]
-puts "generating #{options[:number]} output files:"
+puts "generating #{options[:number]} output files:" if options[:verbose]
 options[:number].times do |i| 
   distance = (i+1).to_f / (options[:number]+1).to_f
   interpolated_poscar = Poscar.interpolate( poscar1, poscar2, distance )
