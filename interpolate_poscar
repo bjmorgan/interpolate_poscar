@@ -35,6 +35,8 @@ class Poscar
 
   attr_accessor :coordinates
   attr_reader :filename
+  attr_reader :lattice
+  attr_reader :coordinate_type
 
   def initialize( filename )
     read_from( filename )
@@ -45,7 +47,7 @@ class Poscar
     input = File.new( filename, 'r').readlines
     @title = input.shift
     @scaling = input.shift
-    @lattice = input.shift(3)
+    @lattice = input.shift(3).map{ |line| line.split.map{ |s| s.to_f }}
     @atoms = input.shift.split
     @atom_numbers = input.shift.split.map{ |s| s.to_i }
     @coordinate_type = input.shift
@@ -58,7 +60,7 @@ class Poscar
     fileout = File.new( filename, 'w' )
     fileout.puts @title
     fileout.puts @scaling
-    fileout.puts @lattice
+    fileout.puts @lattice.map{ |line| line.map{ |f| f.to_s }.join(' ')}
     fileout.puts @atoms.join(' ')
     fileout.puts @atom_numbers.map{ |i| i.to_s }.join(' ')
     fileout.puts @coordinate_type
@@ -66,12 +68,22 @@ class Poscar
     puts "created #{filename}" if verbose
   end
 
+  def cartesian?
+    return /^[Cc]/ =~ @coordinate_type ? true : false
+  end
+
   def self.interpolate( poscar1, poscar2, distance )
     new_poscar = poscar1
-    # should test that the two poscars are compatible
-    # ignoring periodic boundary conditions and minimum image convention
+    # should convert read in poscars to consistent coordinate type
+    # Assuming both cells are in Cartesian coordinates
     new_poscar.coordinates = poscar1.coordinates.zip( poscar2.coordinates ).map do |coords1, coords2|
-      coords1.zip(coords2).map{ |r1,r2| (r1 + r2) * distance }
+      coords1.zip(coords2).map.with_index do |r,vector| 
+        cell_length = new_poscar.lattice[vector][vector] # Assume orthorhombic cell
+        if ( ( r[0] - r[1] ).abs > cell_length / 2.0 )
+          r[ r.index( r.max ) ] -= cell_length
+        end
+        (r[0] + r[1]) * distance 
+      end
     end
     return new_poscar
   end
@@ -91,7 +103,7 @@ end
 puts "interpolating #{poscar1.filename} <==> #{poscar2.filename}:" if options[:verbose]
 puts "generating #{options[:number]} output files:"
 options[:number].times do |i| 
-  distance = (i+1).to_f / options[:number].to_f
+  distance = (i+1).to_f / (options[:number]+1).to_f
   interpolated_poscar = Poscar.interpolate( poscar1, poscar2, distance )
   output_filename = options[:prefix]+(i+1).to_s
   interpolated_poscar.output( output_filename, options[:verbose] )
